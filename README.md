@@ -2,9 +2,10 @@
 
 
 
-loderender renders Loder Runner Levels on C-64 disk images as png files.
+loderender is a Python script that renders [Lode Runner](https://en.wikipedia.org/wiki/Lode_Runner) Levels on C-64 disk images as png files.
 
-Much of the code for this was ripped out of geosLib [geosLib](https://github.com/karstenw/geosLib)
+This project was a weekend hack. The documentation is non-existent and many code lines were ripped out of [geosLib](https://github.com/karstenw/geosLib).
+
 
 #### Usage:
 

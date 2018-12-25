@@ -21,7 +21,7 @@ import pprint
 pp = pprint.pprint
 
 import pdb
-kwdbg = 0
+kwdbg = 1
 kwlog = 1
 
 import time
@@ -58,7 +58,8 @@ blackCol = 0
 whiteCol = 1
 
 
-if 1:
+if 0:
+    # classic c-64 loderunner color scheme
     brickCol = 14
     brickCol = 2
     runnerCol = 1
@@ -71,6 +72,7 @@ if 1:
         '#': guardCol}
     backColor = (0,0,0,1)
 else:
+    # black & white color scheme
     brickCol = 1
     runnerCol = 0
     guardCol = 0
@@ -272,7 +274,9 @@ def dobrick( brick, transparent=0, scale=1  ):
                     image.extend( color )
     i,c = getName( comment )
     img = makeImage( 10, 11, image, scale)
-    if 1: #kwdbg:
+    
+    if kwdbg:
+        # save brick as png
         img.save( str(i) + ' ' + c + '.png')
         print i, c
     return i, c, img
@@ -552,10 +556,8 @@ class DiskImage(object):
 
         for dirEntry in dirEntries:
             # 
-            # dirEntry.smallprnt()
             f = VLIRFile()
             f.dirEntry = dirEntry
-        
             f.header = ""
 
             # file content
@@ -563,8 +565,6 @@ class DiskImage(object):
             err, f.chains[0] = self.getChain(t, s)
 
             self.files.append( f )
-        if kwdbg:
-            self.printDirectory()
 
 
     def getTrackOffsetList(self, sizelist ):
@@ -682,16 +682,8 @@ class DiskImage(object):
                 if gde.fileType in ( 'SEQ', 'PRG', 'USR'):
                     result.append( gde )
         return error, result
-    
-    def printDirectory(self):
-        # print directory
-        print
-        print '#' * 40
-        print repr(self.diskName)
-        print '-' * 20
-        for i in self.DirEntries:
-            i.smallprnt()
-        print
+
+
 
 # Lode Runner is saved on disk in a special way: Each level needs one disk block.
 # The sectors 0 to 15 on the tracks 3 to 11 are used as well as the sectors 0 to 7
@@ -831,10 +823,15 @@ if __name__ == '__main__':
                 img = renderBlock( block, scale=scale )
                 if not img:
                     continue
-                name = "level %i (%i,%i).png" % (i+1,t,s)
+                basename = "level %i (%i,%i)" % (i+1,t,s)
+                name = basename + ".png"
                 destimage = os.path.join( destfolder, name )
                 img = img.convert("P")
                 img.save( destimage )
+                if kwlog:
+                    print basename
             # hexdump( block )
-    # pp( blockTypes )
+    if kwlog:
+        pp( blockTypes )
+
 
