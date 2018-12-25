@@ -21,8 +21,8 @@ import pprint
 pp = pprint.pprint
 
 import pdb
-kwdbg = 1
-kwlog = 1
+kwdbg = 0
+kwlog = 0
 
 import time
 
@@ -828,7 +828,7 @@ if __name__ == '__main__':
                 destimage = os.path.join( destfolder, name )
                 img = img.convert("P")
                 img.save( destimage )
-                if kwlog:
+                if 1: #kwlog:
                     print basename
             # hexdump( block )
     if kwlog:
