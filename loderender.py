@@ -58,7 +58,7 @@ blackCol = 0
 whiteCol = 1
 
 
-if 0:
+if 1:
     # classic c-64 loderunner color scheme
     brickCol = 14
     brickCol = 2
@@ -723,7 +723,7 @@ def getLodeBlocks( diskimage ):
                 blockTypes.add( ord(block[0]) )
             result.append( (err, block, (track,sector)) )
 
-    # track 19 - 10
+    # track 19 - sec. 0..9
     # some disk store levels here
     if 1:
         track = 19
@@ -773,8 +773,12 @@ def renderBlock( block, scale ):
     # pdb.set_trace()
     for y in range(16):
         for xd in range( 14):
+            # index into block
             i = 1 + (y * 14 + xd)
+
             c = ord(block[i])
+            
+            # block at i consists of two tiles
             left = c >> 4
             right = c & 15
             
