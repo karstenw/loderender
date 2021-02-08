@@ -291,21 +291,6 @@ def getBricks( b, scale=1 ):
             result[i] = (name, img)
     return result
 
-scale = 4
-bricks = getBricks(rawBricks, scale=scale)
-
-validLodeLevelNibbles = range( 10 )
-# validLodeLevelNibbles = [ chr(i) for i in validLodeLevelNibbles ]
-validLodeLevelItems = itertools.product( validLodeLevelNibbles, repeat=2)
-validLodeLevelBytes = []
-for i in validLodeLevelItems:
-    high, low = i
-    high <<= 4
-    byte = high + low
-    validLodeLevelBytes.append( chr(byte) )
-validLodeLevelBytes = set( validLodeLevelBytes )
-
-
 dosFileTypes = {
     0: 'DEL',
     1: 'SEQ',
@@ -804,8 +789,24 @@ def renderBlock( block, scale ):
     return baseimg
 
 
+scale = 3
+bricks = getBricks(rawBricks, scale=scale)
+
+validLodeLevelNibbles = range( 10 )
+# validLodeLevelNibbles = [ chr(i) for i in validLodeLevelNibbles ]
+validLodeLevelItems = itertools.product( validLodeLevelNibbles, repeat=2)
+validLodeLevelBytes = []
+for i in validLodeLevelItems:
+    high, low = i
+    high <<= 4
+    byte = high + low
+    validLodeLevelBytes.append( chr(byte) )
+validLodeLevelBytes = set( validLodeLevelBytes )
+
+
 if __name__ == '__main__':
     for f in sys.argv[1:]:
+        # pdb.set_trace()
         path = os.path.abspath( f )
         folder, filename = os.path.split( path )
         basename, ext = os.path.splitext( filename )
