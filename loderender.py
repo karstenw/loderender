@@ -1,6 +1,9 @@
 
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+
+
 import sys
 import os
 
@@ -27,6 +30,21 @@ kwlog = 0
 import time
 
 import itertools
+
+
+# py3 stuff
+
+py3 = False
+try:
+    unicode('')
+    puni = unicode
+    pstr = str
+except NameError:
+    puni = str
+    pstr = bytes
+    py3 = True
+
+
 
 
 
@@ -222,13 +240,14 @@ def makeImage(w, h, pixels, scale):
     # pp( (w, h, pixels) )
 
     result = {}
-    bytes = [ chr(i) for i in pixels ]
-    bytes = ''.join( bytes )
+    # bytes = [ chr(i) for i in pixels ]
+    # bytes = ''.join( bytes )
+    byts = bytes( pixels )
     
     if len( pixels ) != 440:
         pdb.set_trace()
         print len(pixels)
-    coldummy = PIL.Image.frombytes('RGBA', (w,h), bytes, decoder_name='raw')
+    coldummy = PIL.Image.frombytes('RGBA', (w,h), byts, decoder_name='raw')
     if scale != 1:
         size = (int(w*scale), int(h*scale) )
         coldummy = coldummy.resize( size, resample=PIL.Image.NEAREST)
