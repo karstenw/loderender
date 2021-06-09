@@ -240,13 +240,13 @@ def makeImage(w, h, pixels, scale):
     # pp( (w, h, pixels) )
 
     result = {}
-    # bytes = [ chr(i) for i in pixels ]
-    # bytes = ''.join( bytes )
-    byts = bytes( pixels )
+    byts = [ chr(i) for i in pixels ]
+    byts = ''.join( byts )
+    # byts = bytes( pixels )
     
     if len( pixels ) != 440:
         pdb.set_trace()
-        print len(pixels)
+        print(len(pixels))
     coldummy = PIL.Image.frombytes('RGBA', (w,h), byts, decoder_name='raw')
     if scale != 1:
         size = (int(w*scale), int(h*scale) )
@@ -265,7 +265,7 @@ def getName( comment ):
     return -1, ""
 
 
-def dobrick( brick, transparent=0, scale=1  ):
+def dobrick( brick, transparent=1, scale=1  ):
     lines = brick.split( "\n" )
     comment = ""
     image = []
@@ -279,9 +279,9 @@ def dobrick( brick, transparent=0, scale=1  ):
             for c in line:
                 colIdx = brickColors.get( c, -1 )
                 if colIdx < 0:
-                    print "ERROR"
+                    print("ERROR")
                     pdb.set_trace()
-                    print locals()
+                    pp(locals())
                 else:
                     color = list( c64colors[colIdx] )
                     alpha = 255
@@ -297,7 +297,7 @@ def dobrick( brick, transparent=0, scale=1  ):
     if kwdbg:
         # save brick as png
         img.save( str(i) + ' ' + c + '.png')
-        print i, c
+        print( ( i, c ) )
     return i, c, img
 
 
@@ -306,6 +306,7 @@ def getBricks( b, scale=1 ):
     result = {}
     for brick in bricks:
         i,name,img = dobrick( brick, scale=scale )
+        img.save(name + '.png')
         if i >= 0:
             result[i] = (name, img)
     return result
@@ -517,13 +518,13 @@ class DiskImage(object):
                 self.filepath = os.path.abspath(os.path.expanduser(filepath))
                 self.stream = self.readfile( self.filepath )
             else:
-                print "No File ERROR!"
+                print("No File ERROR!")
                 # pdb.set_trace()
         elif stream:
             self.stream = stream
         else:
             # pdb.set_trace()
-            print
+            print()
         self.isOK = False
         self.files = []
         size = len(self.stream)
@@ -614,11 +615,11 @@ class DiskImage(object):
                 return "",""
             
         except Exception, err:
-            print "getTS(%i,%i) ERROR: %s" % (t,s,err)
+            print("getTS(%i,%i) ERROR: %s" % (t,s,err))
             return err, ""
             # pdb.set_trace()
-            print 
-            #print "adr", adr
+            print() 
+            #print("adr: %s" % repr(adr) )
             #print "adr+256", adr+256
             #print len(self.stream)
             # error = err
@@ -706,13 +707,13 @@ def getLodeBlocks( diskimage ):
             err, block = diskimage.getTS( track, sector )
             if err:
                 errcount += 1
-                print "ERROR:", err
+                print("ERROR: %s" % repr(err))
             if kwlog:
                 blockTypes.add( ord(block[0]) )
             idx += 1
             if 0: #idx > 150:
                 pdb.set_trace()
-                print
+                print()
             result.append( (err, block, (track,sector)) )
 
     # not needed with extended scan in first loop
@@ -722,7 +723,7 @@ def getLodeBlocks( diskimage ):
             err, block = diskimage.getTS( track, sector )
             if err:
                 errcount += 1
-                print "ERROR:", err
+                print("ERROR: %s" % repr(err) )
             if kwlog:
                 blockTypes.add( ord(block[0]) )
             result.append( (err, block, (track,sector)) )
@@ -735,7 +736,7 @@ def getLodeBlocks( diskimage ):
             err, block = diskimage.getTS( track, sector )
             if err:
                 errcount += 1
-                print "ERROR:", err
+                print("ERROR: %s" % repr(err) )
             if kwlog:
                 blockTypes.add( ord(block[0]) )
             result.append( (err, block, (track,sector)) )
@@ -769,7 +770,7 @@ def renderBlock( block, scale ):
     Returns img or False."""
     w = int(280 * scale)
     h = int(176 * scale)
-    baseimg = PIL.Image.new('RGBA', (w,h), backColor)
+    baseimg = PIL.Image.new('RGB', (w,h), backColor)
     chk = ord( block[0] )
     
     #if chk not in (0,1,3,13):
@@ -799,16 +800,16 @@ def renderBlock( block, scale ):
                 baseimg.paste( lbrick, (xc+offset,yc) )
                 baseimg.paste( rbrick, (xc+000000,yc) )
             except Exception, err:
-                print 
+                print() 
                 pdb.set_trace()
-                print "xc, yc", xc, yc
-                print "lbrick", lbrick
-                print "rbrick", rbrick
-                print "baseimg", baseimg
+                print( ("xc, yc: ", xc, yc) )
+                print( ("lbrick", lbrick) )
+                print( ("rbrick", rbrick) )
+                print( ("baseimg", baseimg) )
     return baseimg
 
 
-scale = 3
+scale = 2
 bricks = getBricks(rawBricks, scale=scale)
 
 validLodeLevelNibbles = range( 10 )
@@ -834,15 +835,15 @@ if __name__ == '__main__':
             os.makedirs( destfolder )
         di = DiskImage( filepath=path )
         items = getLodeBlocks( di )
-        print path
+        print(path)
         for i, item in enumerate(items):
             err, block, ts = item
             t,s = ts
             if isEmptyBlock( block ):
                 continue
             if err:
-                print repr( err )
-                print
+                print(repr( err ) )
+                print()
             else:
                 img = renderBlock( block, scale=scale )
                 if not img:
@@ -850,10 +851,10 @@ if __name__ == '__main__':
                 basename = "level %i (%i,%i)" % (i+1,t,s)
                 name = basename + ".png"
                 destimage = os.path.join( destfolder, name )
-                img = img.convert("P")
+                # img = img.convert("P")
                 img.save( destimage )
                 if 1: #kwlog:
-                    print basename
+                    print(basename)
             # hexdump( block )
     if kwlog:
         pp( blockTypes )
