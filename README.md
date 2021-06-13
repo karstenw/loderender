@@ -14,4 +14,12 @@ python loderender.py LoderunnerDiskImage.d64
 
 This creates a folder named "LoderunnerDiskImage" and renders all the levels it can find on the disc image.
 
+
+#### Requirements
+
+- Python 2.7 or Python 3. Tested with 2.7.16 and 3.8.7
+
+- [Pillow](https://pypi.org/project/Pillow/)
+
+
 ![level 1](./images/level_1.png?raw=True)
