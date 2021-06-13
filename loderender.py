@@ -7,9 +7,11 @@ from __future__ import print_function
 import sys
 import os
 
+import time
 import datetime
 import struct
 import re
+import itertools
 
 import zipfile
 import gzip
@@ -27,13 +29,8 @@ import pdb
 kwdbg = 0
 kwlog = 0
 
-import time
-
-import itertools
-
 
 # py3 stuff
-
 py3 = False
 try:
     unicode('')
@@ -44,15 +41,7 @@ except NameError:
     pstr = bytes
     py3 = True
 
-
-
-
-
 blockTypes = set()
-
-#
-# constants
-#
 
 c64colors = {
     0: (0,0,0),
@@ -75,13 +64,13 @@ c64colors = {
 blackCol = 0
 whiteCol = 1
 
-
 if 1:
     # classic c-64 loderunner color scheme
     brickCol = 14
     brickCol = 2
     runnerCol = 1
     guardCol = 3
+    usealpha = True
 
     brickColors = {
         ' ': blackCol,
@@ -94,6 +83,7 @@ else:
     brickCol = 1
     runnerCol = 0
     guardCol = 0
+    usealpha = False
 
     brickColors = {
         ' ': whiteCol,
@@ -101,7 +91,6 @@ else:
         '*': blackCol,
         '#': blackCol}
     backColor = (1,1,1,1)
-
 
 
 rawBricks = """-
@@ -237,6 +226,8 @@ rawBricks = """-
 """
 
 def makeImage(w, h, pixels, scale):
+    """ Create a colorimage from pixels with size(w,h) and scale=scale"""
+
     result = {}
     byts = bytes( bytearray( pixels ) )
     if kwdbg and (len( pixels ) != 440):
@@ -250,6 +241,7 @@ def makeImage(w, h, pixels, scale):
 
 
 def getName( comment ):
+    """Extract index and name from inline brick."""
     pat = re.compile("^- (\d+) \((.+)\).*")
     m = pat.match( comment )
     if m:
@@ -259,7 +251,11 @@ def getName( comment ):
     return -1, ""
 
 
-def dobrick( brick, transparent=1, scale=1  ):
+def dobrick( brick, transparency=1, scale=1 ):
+    """Create an image for a brick.
+    
+    Return index, name, PIL.Image"""
+
     lines = brick.split( "\n" )
     comment = ""
     image = []
@@ -279,7 +275,7 @@ def dobrick( brick, transparent=1, scale=1  ):
                     color = list( c64colors[colIdx] )
                     alpha = 255
                     if colIdx == 0:
-                        if transparent:
+                        if transparency:
                             alpha = 0
                     color.append( alpha )
                     
@@ -287,22 +283,23 @@ def dobrick( brick, transparent=1, scale=1  ):
     i,c = getName( comment )
     img = makeImage( 10, 11, image, scale)
     
-    if kwdbg:
+    if kwdbg and 1:
         # save brick as png
         img.save( str(i) + ' ' + c + '.png')
         print( ( i, c ) )
     return i, c, img
 
 
-def getBricks( b, scale=1 ):
+def getBricks( b, scale=1, transparency=1 ):
+    """Create a dict with keys = brickindex and values = brickimage."""
     bricks = b.split("\n-------------\n")
     result = {}
     for brick in bricks:
-        i,name,img = dobrick( brick, scale=scale )
-        img.save(name + '.png')
+        i,name,img = dobrick( brick, transparency=transparency, scale=scale )
         if i >= 0:
             result[i] = (name, img)
     return result
+
 
 dosFileTypes = {
     0: 'DEL',
@@ -353,7 +350,6 @@ dirSectorStructures = {
     '.d64': ("<b b  c      c    140s 16s 2x 2s x   2s 4x b     b     11s       5s 67x", 
              "tr sc format dosv1 bam dnam   diskid dosv2 dsktr dsksc geoformat geoversion")
 }
-
 
 #
 # tools
@@ -417,6 +413,13 @@ def hexdump( s, col=32 ):
 # disk image tools
 #
 
+def cleanupString( s ):
+    # remove garbage
+    t = s.strip( stripchars )
+    t1 = bytearray( [0] )
+    return t.split( t1 )[0]
+
+
 class VLIRFile(object):
     """The main file holding object in this suite.
     
@@ -436,17 +439,11 @@ class VLIRFile(object):
         # origin
         self.filepath = ""
 
-def cleanupString( s ):
-    # remove garbage
-    t = s.strip( stripchars )
-    return t.split( chr(0) )[0]
-
-
 class GEOSDirEntry(object):
     """A Commodore directory entry with additional GEOS attributes.    """
 
     def __init__(self, dirEntryBytes, isGeos=True):
-    
+
         if len(dirEntryBytes) == 32:
             dirEntryBytes = dirEntryBytes[2:]
 
@@ -454,21 +451,28 @@ class GEOSDirEntry(object):
         self.dirEntryBytes = dirEntryBytes
 
         self.dosFileTypeRAW = dirEntryBytes[0]
-        self.fileOK = (ord(self.dosFileTypeRAW) & 128) > 0
-        self.fileProtected = (ord(self.dosFileTypeRAW) & 64) > 0
-        t = ord(self.dosFileTypeRAW) & 7
+        # self.fileOK = (ord(self.dosFileTypeRAW) & 128) > 0
+        self.fileOK = ( self.dosFileTypeRAW & 128) > 0
+        # self.fileProtected = (ord(self.dosFileTypeRAW) & 64) > 0
+        self.fileProtected = ( self.dosFileTypeRAW & 64) > 0
+        # t = ord(self.dosFileTypeRAW) & 7
+        t = self.dosFileTypeRAW & 7
 
         self.fileType = dosFileTypes.get(t, "???")
-        self.trackSector = (ord(dirEntryBytes[1]), ord(dirEntryBytes[2]))
+        # self.trackSector = (ord(dirEntryBytes[1]), ord(dirEntryBytes[2]))
+        self.trackSector = ( dirEntryBytes[1], dirEntryBytes[2] )
         self.fileName = dirEntryBytes[0x03:0x13]
         
         self.geosHeaderTrackSector = (0,0)
-        self.fileSizeBlocks = ord(dirEntryBytes[0x1c]) + ord(dirEntryBytes[0x1d]) * 256
+        # self.fileSizeBlocks = ord(dirEntryBytes[0x1c]) + ord(dirEntryBytes[0x1d]) * 256
+        self.fileSizeBlocks = dirEntryBytes[0x1c] + dirEntryBytes[0x1d] * 256
 
         # if not geos, this is REL side sector
-        self.geosHeaderTrackSector = (ord(dirEntryBytes[19]), ord(dirEntryBytes[20]))
+        # self.geosHeaderTrackSector = (ord(dirEntryBytes[19]), ord(dirEntryBytes[20]))
+        self.geosHeaderTrackSector = ( dirEntryBytes[19], dirEntryBytes[20] )
         # if not geos, this is REL record size
-        self.geosFileStructure = ord(dirEntryBytes[21])
+        # self.geosFileStructure = ord(dirEntryBytes[21])
+        self.geosFileStructure = dirEntryBytes[21]
         self.geosFileStructureString = ""
         self.geosFileTypeString = ""
         self.modfDate = "NO MODF DATE"
@@ -482,14 +486,17 @@ class GEOSDirEntry(object):
                 self.geosFileStructureString = "VLIR"
                 self.isGEOSFile = True
 
-            self.geosFileType = ord(dirEntryBytes[22])
+            # self.geosFileType = ord(dirEntryBytes[22])
+            self.geosFileType = dirEntryBytes[22]
             #self.geosFileTypeString = geosFileTypes[self.geosFileType]
             self.geosFileTypeString = geosFileTypes.get(self.geosFileType,
                                     "UNKNOWN GEOS filetype:%i" % self.geosFileType)
 
-            self.modfDateRAW = dirEntryBytes[0x17:0x1c]
-            dates = [ord(i) for i in self.modfDateRAW]
-            y,m,d,h,mi = dates
+            # self.modfDateRAW = dirEntryBytes[0x17:0x1c]
+            # dates = [ord(i) for i in self.modfDateRAW]
+            #dates = [ord(i) for i in self.modfDateRAW]
+            #y,m,d,h,mi = dates
+            y,m,d,h,mi = self.dirEntryBytes[0x17:0x1c]
             if 85 <= y <= 99:
                 y += 1900
             else:
@@ -535,7 +542,7 @@ class DiskImage(object):
         self.minMaxTrack = minMaxTrack[typ]
 
         dtr, dsc = self.dirSectorTS
-    
+
         s,n = dirSectorStructures[typ]
         err, dirSec = self.getTS( dtr, dsc )
         #if err != "":
@@ -544,9 +551,13 @@ class DiskImage(object):
         n = n.split()
         d = dict(zip(n,t))
         s = d.get('dnam', 'NO DISK NAME')
-        s = s.rstrip( chr(int("a0",16)))
+        if py3:
+            t1 = bytearray( [160] )
+        else:
+            t1 = chr(int("a0",16))
+        s = s.rstrip( t1 )
         self.diskName = s
-    
+
         err, self.DirEntries = self.getDirEntries( d['tr'], d['sc'])
         
         # get files
@@ -590,6 +601,7 @@ class DiskImage(object):
         f = open(path, 'rb')
         s = f.read()
         f.close()
+        s = bytearray(s)
         return s
 
     def getTS(self, t, s):
@@ -617,7 +629,7 @@ class DiskImage(object):
             #print len(self.stream)
             # error = err
         return error, data
-    
+
     def getChain(self, t, s):
         error = ""
         readSoFar = set()
@@ -630,13 +642,14 @@ class DiskImage(object):
             err, b = self.getTS(tr, sc)
             readSoFar.add( (tr,sc) )
             if err != "":
-                s = ''.join( result )
+                # s = ''.join( result )
+                s = bytearray(result)
                 return err, s
             if len(b) <= 2:
                 # pdb.set_trace()
                 break
-            tr = ord(b[0])
-            sc = ord(b[1])
+            tr = b[0] # ord(b[0])
+            sc = b[1] # ord(b[1])
             if tr == 0:
                 result.append( b[2:sc+1] )
                 break
@@ -650,7 +663,9 @@ class DiskImage(object):
                 break
             else:
                 result.append( b[2:] )
-        return error, ''.join( result )
+        # s = ''.join( result )
+        # s = bytearray( result )
+        return error, result
 
     def getDirEntries(self, t, s):
         """Read all file entries"""
@@ -669,7 +684,7 @@ class DiskImage(object):
             if not b:
                 break
             
-            nextrack, nextsector = ord(b[0]), ord(b[1])
+            nextrack, nextsector = b[0], b[1] # ord(b[0]), ord(b[1])
             if (nextrack, nextsector) in readSoFar:
                 break
             base = 0
@@ -688,10 +703,10 @@ class DiskImage(object):
 # on track 12. The last of these blocks contain the highscores.
 
 def getLodeBlocks( diskimage ):
+    """Read all possible loderunner level blocks."""
     global blockTypes
     result = []
     errcount = 0
-    # pdb.set_trace()
 
     idx = 1
     # 240 blocks
@@ -702,47 +717,25 @@ def getLodeBlocks( diskimage ):
                 errcount += 1
                 print("ERROR: %s" % repr(err))
             if kwlog:
-                blockTypes.add( ord(block[0]) )
+                blockTypes.add( block[0] ) # ord(block[0]) )
             idx += 1
-            if 0: #idx > 150:
-                pdb.set_trace()
-                print()
-            result.append( (err, block, (track,sector)) )
-
-    # not needed with extended scan in first loop
-    if 0:
-        track = 12
-        for sector in range(6):
-            err, block = diskimage.getTS( track, sector )
-            if err:
-                errcount += 1
-                print("ERROR: %s" % repr(err) )
-            if kwlog:
-                blockTypes.add( ord(block[0]) )
             result.append( (err, block, (track,sector)) )
 
     # track 19 - sec. 0..9
     # some disk store levels here
-    if 1:
-        track = 19
-        for sector in range(10):
-            err, block = diskimage.getTS( track, sector )
-            if err:
-                errcount += 1
-                print("ERROR: %s" % repr(err) )
-            if kwlog:
-                blockTypes.add( ord(block[0]) )
-            result.append( (err, block, (track,sector)) )
+    track = 19
+    for sector in range(10):
+        err, block = diskimage.getTS( track, sector )
+        if err:
+            errcount += 1
+            print("ERROR: %s" % repr(err) )
+        if kwlog:
+            blockTypes.add( block[0] ) # ord(block[0]) )
+        result.append( (err, block, (track,sector)) )
     return result
 
 
-def canBeLodeLevelBlock( block ):
-    # count nibbletypes and compare
-    pass
-
-
 def isEmptyBlock( block ):
-    
     # if bytes 0..223 == 0 it might be a level block
     n = len(block)
     if n < 224:
@@ -751,30 +744,25 @@ def isEmptyBlock( block ):
         c = block[i]
         if c not in validLodeLevelBytes:
             return False
-        s = ord(c)
-        if s not in ( 0, 1):
+        if c not in (0,1):
             return False
     return True
 
 
 def renderBlock( block, scale ):
     """Render a disk block as a lode runner level PNG file.
-    
+
     Returns img or False."""
+
     w = int(280 * scale)
     h = int(176 * scale)
     baseimg = PIL.Image.new('RGB', (w,h), backColor)
-    chk = ord( block[0] )
-    
-    #if chk not in (0,1,3,13):
-    #    return False
-    # pdb.set_trace()
+
     for y in range(16):
         for xd in range( 14):
             # index into block
             i = 1 + (y * 14 + xd)
-
-            c = ord(block[i])
+            c = block[i]
             
             # block at i consists of two tiles
             left = c >> 4
@@ -802,24 +790,28 @@ def renderBlock( block, scale ):
     return baseimg
 
 
-scale = 4
-bricks = getBricks(rawBricks, scale=scale)
-
-validLodeLevelNibbles = range( 10 )
-# validLodeLevelNibbles = [ chr(i) for i in validLodeLevelNibbles ]
-validLodeLevelItems = itertools.product( validLodeLevelNibbles, repeat=2)
-validLodeLevelBytes = []
-for i in validLodeLevelItems:
-    high, low = i
-    high <<= 4
-    byte = high + low
-    validLodeLevelBytes.append( chr(byte) )
-validLodeLevelBytes = set( validLodeLevelBytes )
-
 
 if __name__ == '__main__':
+    scale = 4
+    
+    # load the bricks
+    bricks = getBricks(rawBricks, scale=scale, transparency=usealpha )
+
+    # create a set with all possible nibble combinations (100) for fast level check
+    validLodeLevelNibbles = range( 10 )
+    validLodeLevelItems = itertools.product( validLodeLevelNibbles, repeat=2)
+    validLodeLevelBytes = []
+    for i in validLodeLevelItems:
+        high, low = i
+        high <<= 4
+        byte = high + low
+        validLodeLevelBytes.append( byte ) # chr(byte) )
+    validLodeLevelBytes = set( validLodeLevelBytes )
+
+    # process the args
     for f in sys.argv[1:]:
-        # pdb.set_trace()
+
+        # get disk image
         path = os.path.abspath( f )
         folder, filename = os.path.split( path )
         basename, ext = os.path.splitext( filename )
@@ -827,6 +819,8 @@ if __name__ == '__main__':
         if not os.path.exists( destfolder ):
             os.makedirs( destfolder )
         di = DiskImage( filepath=path )
+
+        # 
         items = getLodeBlocks( di )
         print(path)
         for i, item in enumerate(items):
