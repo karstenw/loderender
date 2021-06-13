@@ -237,22 +237,16 @@ rawBricks = """-
 """
 
 def makeImage(w, h, pixels, scale):
-    # pp( (w, h, pixels) )
-
     result = {}
-    byts = [ chr(i) for i in pixels ]
-    byts = ''.join( byts )
-    # byts = bytes( pixels )
-    
-    if len( pixels ) != 440:
+    byts = bytes( bytearray( pixels ) )
+    if kwdbg and (len( pixels ) != 440):
         pdb.set_trace()
         print(len(pixels))
-    coldummy = PIL.Image.frombytes('RGBA', (w,h), byts, decoder_name='raw')
+    colorimage = PIL.Image.frombytes('RGBA', (w,h), byts, decoder_name='raw')
     if scale != 1:
         size = (int(w*scale), int(h*scale) )
-        coldummy = coldummy.resize( size, resample=PIL.Image.NEAREST)
-    # colimg = PIL.Image.new('RGB', (w,h), (1,1,1))
-    return coldummy
+        colorimage = colorimage.resize( size, resample=PIL.Image.NEAREST)
+    return colorimage
 
 
 def getName( comment ):
@@ -269,7 +263,6 @@ def dobrick( brick, transparent=1, scale=1  ):
     lines = brick.split( "\n" )
     comment = ""
     image = []
-    # pdb.set_trace()
     for line in lines:
         if not line:
             continue
@@ -278,7 +271,7 @@ def dobrick( brick, transparent=1, scale=1  ):
         else:
             for c in line:
                 colIdx = brickColors.get( c, -1 )
-                if colIdx < 0:
+                if kwdbg and (colIdx < 0):
                     print("ERROR")
                     pdb.set_trace()
                     pp(locals())
@@ -367,8 +360,8 @@ dirSectorStructures = {
 #
 def makeunicode( s, enc="utf-8", normalizer='NFC'):
     try:
-        if type(s) != unicode:
-            s = unicode(s, enc)
+        if type(s) != puni:
+            s = puni(s, enc)
     except:
         pass
     s = unicodedata.normalize(normalizer, s)
@@ -503,7 +496,7 @@ class GEOSDirEntry(object):
                 y += 2000
             try:
                 self.modfDate = datetime.datetime(y,m,d,h,mi)
-            except Exception, err:
+            except Exception as err:
                 self.modfDate = "ERROR WITH:  %i %i %i - %i:%i" % (y,m,d,h,mi)
 
 
@@ -614,7 +607,7 @@ class DiskImage(object):
             else:
                 return "",""
             
-        except Exception, err:
+        except Exception as err:
             print("getTS(%i,%i) ERROR: %s" % (t,s,err))
             return err, ""
             # pdb.set_trace()
@@ -799,7 +792,7 @@ def renderBlock( block, scale ):
             try:
                 baseimg.paste( lbrick, (xc+offset,yc) )
                 baseimg.paste( rbrick, (xc+000000,yc) )
-            except Exception, err:
+            except Exception as err:
                 print() 
                 pdb.set_trace()
                 print( ("xc, yc: ", xc, yc) )
@@ -809,7 +802,7 @@ def renderBlock( block, scale ):
     return baseimg
 
 
-scale = 2
+scale = 4
 bricks = getBricks(rawBricks, scale=scale)
 
 validLodeLevelNibbles = range( 10 )
