@@ -1,28 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Created by Leo: http://leoeditor.com/leo_toc.html -->
 <leo_file xmlns:leo="http://leoeditor.com/namespaces/leo-python-editor/1.1" >
-<leo_header file_format="2" tnodes="0" max_tnode_index="0" clone_windows="0"/>
-<globals body_outline_ratio="0.5" body_secondary_ratio="0.5">
-	<global_window_position top="50" left="50" height="500" width="700"/>
-	<global_log_window_position top="0" left="0" height="0" width="0"/>
-</globals>
+<leo_header file_format="2"/>
+<globals/>
 <preferences/>
 <find_panel_settings/>
 <vnodes>
-<v t="karstenw.20210613141655.2" a="E"><vh>Script</vh>
-<v t="karstenw.20210613141729.1" a="E"><vh>@clean loderender.py</vh>
+<v t="karstenw.20210613141655.2"><vh>Script </vh>
+<v t="karstenw.20210613141729.1"><vh>@clean loderender.py</vh>
 <v t="karstenw.20210613142129.1"><vh>Declarations</vh></v>
 <v t="karstenw.20210613142213.1"><vh>py2 / py3</vh></v>
-<v t="karstenw.20210613142244.1"><vh>globals</vh></v>
+<v t="karstenw.20210613142244.1"><vh>+ GLOBALS +</vh>
+<v t="karstenw.20210714160248.1"><vh>c64colors</vh></v>
+<v t="karstenw.20210714160342.1"><vh>validLodeLevelBytes</vh></v>
+<v t="karstenw.20210714160414.1"><vh>rawBricks</vh></v>
+</v>
+<v t="karstenw.20210613142351.1"><vh>+ TOOLS +</vh>
+<v t="karstenw.20210613142129.6"><vh>makeunicode</vh></v>
+<v t="karstenw.20210613142129.7"><vh>hexdump</vh></v>
 <v t="karstenw.20210613142129.2"><vh>makeImage</vh></v>
+</v>
+<v t="karstenw.20210714155339.1"><vh>+ BRICKS +</vh>
 <v t="karstenw.20210613142129.3"><vh>getName</vh></v>
 <v t="karstenw.20210613142129.4"><vh>dobrick</vh></v>
 <v t="karstenw.20210613142129.5"><vh>getBricks</vh></v>
-<v t="karstenw.20210613142351.1"><vh>Tools</vh>
-<v t="karstenw.20210613142129.6"><vh>makeunicode</vh></v>
-<v t="karstenw.20210613142129.7"><vh>hexdump</vh></v>
 </v>
-<v t="karstenw.20210613142403.1"><vh>cbm disk images</vh>
+<v t="karstenw.20210613142403.1"><vh>+ DISK IMAGES +</vh>
+<v t="karstenw.20210714160934.1"><vh>data</vh></v>
 <v t="karstenw.20210613142129.10"><vh>cleanupString</vh></v>
 <v t="karstenw.20210613142129.8"><vh>class VLIRFile</vh>
 <v t="karstenw.20210613142129.9"><vh>__init__</vh></v>
@@ -39,10 +43,14 @@
 <v t="karstenw.20210613142129.19"><vh>getDirEntries</vh></v>
 </v>
 </v>
-<v t="karstenw.20210613142500.1"><vh>Lode Runner</vh></v>
+<v t="karstenw.20210714203056.1"><vh>+ APPLE II DISK IMAGES #</vh></v>
+<v t="karstenw.20210613142500.1"><vh>Lode Runner</vh>
 <v t="karstenw.20210613142129.20"><vh>getLodeBlocks</vh></v>
 <v t="karstenw.20210613142129.21"><vh>isEmptyBlock</vh></v>
 <v t="karstenw.20210613142129.22"><vh>renderBlock</vh></v>
+<v t="karstenw.20210714155803.1"><vh>renderCBMDisk</vh></v>
+</v>
+<v t="karstenw.20210714160306.1"><vh>color schemes</vh></v>
 <v t="karstenw.20210613142828.1"><vh>MAIN</vh></v>
 </v>
 </v>
@@ -61,6 +69,7 @@ from __future__ import print_function
 
 import sys
 import os
+import io
 
 import time
 import datetime
@@ -145,9 +154,8 @@ kwlog = 0
 
         # self.geosFileType = ord(dirEntryBytes[22])
         self.geosFileType = dirEntryBytes[22]
-        #self.geosFileTypeString = geosFileTypes[self.geosFileType]
         self.geosFileTypeString = geosFileTypes.get(self.geosFileType,
-                                "UNKNOWN GEOS filetype:%i" % self.geosFileType)
+                            "UNKNOWN GEOS filetype:%i" % self.geosFileType)
 
         # self.modfDateRAW = dirEntryBytes[0x17:0x1c]
         # dates = [ord(i) for i in self.modfDateRAW]
@@ -194,7 +202,7 @@ kwlog = 0
     size = len(self.stream)
     typ, sectorcount = imagesizeToExt.get( size, ("",0) )
     
-    if typ not in ('.d64',): # '.d71'):
+    if typ not in ('.d64', '.dsk'): # '.d71'):
         return
 
     self.isOK = True
@@ -238,6 +246,7 @@ kwlog = 0
         err, f.chains[0] = self.getChain(t, s)
 
         self.files.append( f )
+        pp( (dirEntry.fileType, repr(dirEntry.fileName), len(f.chains[0])) )
 
 
 </t>
@@ -264,7 +273,7 @@ kwlog = 0
 
 </t>
 <t tx="karstenw.20210613142129.16">def readfile( self, path):
-    f = open(path, 'rb')
+    f = io.open(path, 'rb')
     s = f.read()
     f.close()
     s = bytearray(s)
@@ -433,7 +442,7 @@ kwlog = 0
 
 
 </t>
-<t tx="karstenw.20210613142129.22">def renderBlock( block, scale ):
+<t tx="karstenw.20210613142129.22">def renderBlock( block, bricks, scale ):
     """Render a disk block as a lode runner level PNG file.
 
     Returns img or False."""
@@ -538,56 +547,6 @@ kwlog = 0
     return result
 
 
-dosFileTypes = {
-    0: 'DEL',
-    1: 'SEQ',
-    2: 'PRG',
-    3: 'USR',
-    4: 'REL',
-    5: 'CBM'}
-
-
-#
-# disk image constants
-# 
-
-
-# drive geometries
-sectorTables = {
-    '.d64': (
-            ( 0,  0,  0),
-            ( 1, 17, 21),
-            (18, 24, 19),
-            (25, 30, 18),
-            (31, 35, 17)) }
-
-minMaxTrack = {
-    '.d81': (1,80),
-    '.d71': (1,70),
-    '.d64': (1,35) }
-
-extToImagesize = {
-    # ext, filesize, sector count
-    '.d64': ((174848,  683),),
-    '.d81': ((819200, 3200),),
-    '.d71': ((349696, 1366),
-             (349696+1366, 1366)) }
-
-imagesizeToExt = {
-    # filesize, ext, sector count
-    174848: ( '.d64',  683),
-    175531: ( '.d64',  683) }
-
-dirSectorsForDrives = { '.d64': (18, 0) }
-
-# TO DO: .D71
-dirSectorStructures = {
-    # the first entry is the struct unpack string
-    # the second entry are names to be attached in a dict
-    '.d64': ("&lt;b b  c      c    140s 16s 2x 2s x   2s 4x b     b     11s       5s 67x", 
-             "tr sc format dosv1 bam dnam   diskid dosv2 dsktr dsksc geoformat geoversion")
-}
-
 </t>
 <t tx="karstenw.20210613142129.6">def makeunicode( s, enc="utf-8", normalizer='NFC'):
     try:
@@ -649,6 +608,25 @@ dirSectorStructures = {
 # disk image tools
 #
 
+geosFileTypes = {
+    0: 'Non-GEOS file',
+    1: 'BASIC Program',
+    2: 'Assembly program',
+    3: 'Data file',
+    4: 'System file',
+    5: 'Desk Accessory',
+    6: 'Application',
+    7: 'Application Data',
+    8: 'Font file',
+    9: 'Printer driver',
+    10: 'Input driver',
+    11: 'Disk Device',
+    12: 'System Boot file',
+    13: 'Temporary',
+    14: 'Auto Executing',
+    15: 'Input 128'}
+
+
 </t>
 <t tx="karstenw.20210613142129.8">class VLIRFile(object):
     """The main file holding object in this suite.
@@ -686,7 +664,75 @@ except NameError:
 </t>
 <t tx="karstenw.20210613142244.1">blockTypes = set()
 
-c64colors = {
+
+
+
+</t>
+<t tx="karstenw.20210613142351.1">#
+# tools
+#
+</t>
+<t tx="karstenw.20210613142403.1"></t>
+<t tx="karstenw.20210613142500.1"></t>
+<t tx="karstenw.20210613142828.1">
+if __name__ == '__main__':
+
+    # this defines the style of the image
+    scale = 4
+    bricks = getBricks( rawBricks, scale=scale, transparency=usealpha )
+
+    # process the args
+    for f in sys.argv[1:]:
+
+        # get disk image
+        path = os.path.abspath( f )
+        folder, filename = os.path.split( path )
+        basename, ext = os.path.splitext( filename )
+        destfolder = os.path.join( folder, basename )
+        if not os.path.exists( destfolder ):
+            os.makedirs( destfolder )
+        di = DiskImage( filepath=path )
+
+        # 
+        items = getLodeBlocks( di )
+        print(path)
+        
+        renderCBMDisk(items, bricks, scale=4, usealpha=False)
+
+    if kwlog:
+        pp( blockTypes )
+
+
+</t>
+<t tx="karstenw.20210714155339.1"></t>
+<t tx="karstenw.20210714155803.1">def renderCBMDisk(blocklist, bricks, scale=4, usealpha=False):
+
+    for i, item in enumerate(blocklist):
+        err, block, ts = item
+        t,s = ts
+        if isEmptyBlock( block ):
+            continue
+        if err:
+            print(repr( err ) )
+            print()
+        else:
+            img = renderBlock( block, bricks, scale=scale )
+            if not img:
+                continue
+            basename = "level %i (%i,%i)" % (i+1,t,s)
+            name = basename + ".png"
+            destimage = os.path.join( destfolder, name )
+            # img = img.convert("P")
+            img.save( destimage )
+            if 1: #kwlog:
+                print(basename)
+        # hexdump( block )
+if kwlog:
+        pp( blockTypes )
+
+
+</t>
+<t tx="karstenw.20210714160248.1">c64colors = {
     0: (0,0,0),
     1: (255,255,255),
     2: (0x88,0,0),
@@ -707,6 +753,8 @@ c64colors = {
 blackCol = 0
 whiteCol = 1
 
+</t>
+<t tx="karstenw.20210714160306.1">
 if 1:
     # classic c-64 loderunner color scheme
     brickCol = 14
@@ -734,9 +782,21 @@ else:
         '*': blackCol,
         '#': blackCol}
     backColor = (1,1,1,1)
+</t>
+<t tx="karstenw.20210714160342.1"># create a set with all possible nibble combinations (100) for fast level check
+validLodeLevelNibbles = range( 10 )
+validLodeLevelItems = itertools.product( validLodeLevelNibbles, repeat=2)
+validLodeLevelBytes = []
+for i in validLodeLevelItems:
+    high, low = i
+    high &lt;&lt;= 4
+    byte = high + low
+    validLodeLevelBytes.append( byte ) # chr(byte) )
+validLodeLevelBytes = set( validLodeLevelBytes )
 
 
-rawBricks = """-
+</t>
+<t tx="karstenw.20210714160414.1">rawBricks = """-
 - 0 (nothing):
           
           
@@ -869,69 +929,56 @@ rawBricks = """-
 """
 
 </t>
-<t tx="karstenw.20210613142351.1">#
-# tools
+<t tx="karstenw.20210714160934.1">
+dosFileTypes = {
+    0: 'DEL',
+    1: 'SEQ',
+    2: 'PRG',
+    3: 'USR',
+    4: 'REL',
+    5: 'CBM'}
+
+
 #
+# disk image constants
+# 
+
+
+# drive geometries
+sectorTables = {
+    '.d64': (
+            ( 0,  0,  0),
+            ( 1, 17, 21),
+            (18, 24, 19),
+            (25, 30, 18),
+            (31, 35, 17)),
+    '.dsk': (
+            ( 0,  0,  0),
+            ( 1, 35, 16))
+    }
+
+minMaxTrack = {
+    '.dsk': (1,35),
+    '.d81': (1,80),
+    '.d71': (1,70),
+    '.d64': (1,35) }
+
+imagesizeToExt = {
+    # filesize, ext, sector count
+    143360: ( '.dsk',  560),
+    174848: ( '.d64',  683),
+    175531: ( '.d64',  683) }
+
+dirSectorsForDrives = { '.d64': (18, 0) }
+
+# TO DO: .D71
+dirSectorStructures = {
+    # the first entry is the struct unpack string
+    # the second entry are names to be attached in a dict
+    '.d64': ("&lt;b b  c      c    140s 16s 2x 2s x   2s 4x b     b     11s       5s 67x", 
+             "tr sc format dosv1 bam dnam   diskid dosv2 dsktr dsksc geoformat geoversion")
+}
 </t>
-<t tx="karstenw.20210613142403.1"></t>
-<t tx="karstenw.20210613142500.1"></t>
-<t tx="karstenw.20210613142828.1">
-if __name__ == '__main__':
-    scale = 4
-    
-    # load the bricks
-    bricks = getBricks(rawBricks, scale=scale, transparency=usealpha )
-
-    # create a set with all possible nibble combinations (100) for fast level check
-    validLodeLevelNibbles = range( 10 )
-    validLodeLevelItems = itertools.product( validLodeLevelNibbles, repeat=2)
-    validLodeLevelBytes = []
-    for i in validLodeLevelItems:
-        high, low = i
-        high &lt;&lt;= 4
-        byte = high + low
-        validLodeLevelBytes.append( byte ) # chr(byte) )
-    validLodeLevelBytes = set( validLodeLevelBytes )
-
-    # process the args
-    for f in sys.argv[1:]:
-
-        # get disk image
-        path = os.path.abspath( f )
-        folder, filename = os.path.split( path )
-        basename, ext = os.path.splitext( filename )
-        destfolder = os.path.join( folder, basename )
-        if not os.path.exists( destfolder ):
-            os.makedirs( destfolder )
-        di = DiskImage( filepath=path )
-
-        # 
-        items = getLodeBlocks( di )
-        print(path)
-        for i, item in enumerate(items):
-            err, block, ts = item
-            t,s = ts
-            if isEmptyBlock( block ):
-                continue
-            if err:
-                print(repr( err ) )
-                print()
-            else:
-                img = renderBlock( block, scale=scale )
-                if not img:
-                    continue
-                basename = "level %i (%i,%i)" % (i+1,t,s)
-                name = basename + ".png"
-                destimage = os.path.join( destfolder, name )
-                # img = img.convert("P")
-                img.save( destimage )
-                if 1: #kwlog:
-                    print(basename)
-            # hexdump( block )
-    if kwlog:
-        pp( blockTypes )
-
-
-</t>
+<t tx="karstenw.20210714203056.1"></t>
 </tnodes>
 </leo_file>

@@ -6,6 +6,7 @@ from __future__ import print_function
 
 import sys
 import os
+import io
 
 import time
 import datetime
@@ -43,6 +44,9 @@ except NameError:
 
 blockTypes = set()
 
+
+
+
 c64colors = {
     0: (0,0,0),
     1: (255,255,255),
@@ -64,33 +68,16 @@ c64colors = {
 blackCol = 0
 whiteCol = 1
 
-if 1:
-    # classic c-64 loderunner color scheme
-    brickCol = 14
-    brickCol = 2
-    runnerCol = 1
-    guardCol = 3
-    usealpha = True
-
-    brickColors = {
-        ' ': blackCol,
-        '.': whiteCol,
-        '*': brickCol,
-        '#': guardCol}
-    backColor = (0,0,0,1)
-else:
-    # black & white color scheme
-    brickCol = 1
-    runnerCol = 0
-    guardCol = 0
-    usealpha = False
-
-    brickColors = {
-        ' ': whiteCol,
-        '.': blackCol,
-        '*': blackCol,
-        '#': blackCol}
-    backColor = (1,1,1,1)
+# create a set with all possible nibble combinations (100) for fast level check
+validLodeLevelNibbles = range( 10 )
+validLodeLevelItems = itertools.product( validLodeLevelNibbles, repeat=2)
+validLodeLevelBytes = []
+for i in validLodeLevelItems:
+    high, low = i
+    high <<= 4
+    byte = high + low
+    validLodeLevelBytes.append( byte ) # chr(byte) )
+validLodeLevelBytes = set( validLodeLevelBytes )
 
 
 rawBricks = """-
@@ -225,6 +212,87 @@ rawBricks = """-
      ..   
 """
 
+#
+# tools
+#
+def makeunicode( s, enc="utf-8", normalizer='NFC'):
+    try:
+        if type(s) != puni:
+            s = puni(s, enc)
+    except:
+        pass
+    s = unicodedata.normalize(normalizer, s)
+    return s
+
+
+def hexdump( s, col=32 ):
+    """Using this for debugging was so memory lane..."""
+
+    cols = {
+         8: ( 7, 0xfffffff8),
+        16: (15, 0xfffffff0),
+        32: (31, 0xffffffe0),
+        64: (63, 0xffffffc0)}
+
+    if not col in cols:
+        col = 16
+    minorMask, majorMask = cols.get(col)
+    d = False
+    mask = col-1
+    if type(s) in( list, tuple): #ImageBuffer):
+        d = True
+    for i,c in enumerate(s):
+        if d:
+            t = hex(c)[2:]
+        else:
+            t = hex(ord(c))[2:]
+        t = t.rjust(2, '0')
+
+        # spit out address
+        if i % col == 0:
+            a = hex(i)[2:]
+            a = a.rjust(4,'0')
+            sys.stdout.write(a+':  ')
+        sys.stdout.write(t+' ')
+
+        # spit out ascii line
+        if i & minorMask == minorMask:
+            offs = i & majorMask
+            
+            for j in range(col):
+                c2 = s[offs+j]
+                d2 = ord(c2)
+                if 32 <= d2 < 127:
+                    sys.stdout.write( c2 )
+                else:
+                    sys.stdout.write( '.' )
+            sys.stdout.write('\n')
+
+
+
+#
+# disk image tools
+#
+
+geosFileTypes = {
+    0: 'Non-GEOS file',
+    1: 'BASIC Program',
+    2: 'Assembly program',
+    3: 'Data file',
+    4: 'System file',
+    5: 'Desk Accessory',
+    6: 'Application',
+    7: 'Application Data',
+    8: 'Font file',
+    9: 'Printer driver',
+    10: 'Input driver',
+    11: 'Disk Device',
+    12: 'System Boot file',
+    13: 'Temporary',
+    14: 'Auto Executing',
+    15: 'Input 128'}
+
+
 def makeImage(w, h, pixels, scale):
     """ Create a colorimage from pixels with size(w,h) and scale=scale"""
 
@@ -301,6 +369,7 @@ def getBricks( b, scale=1, transparency=1 ):
     return result
 
 
+
 dosFileTypes = {
     0: 'DEL',
     1: 'SEQ',
@@ -322,22 +391,21 @@ sectorTables = {
             ( 1, 17, 21),
             (18, 24, 19),
             (25, 30, 18),
-            (31, 35, 17)) }
+            (31, 35, 17)),
+    '.dsk': (
+            ( 0,  0,  0),
+            ( 1, 35, 16))
+    }
 
 minMaxTrack = {
+    '.dsk': (1,35),
     '.d81': (1,80),
     '.d71': (1,70),
     '.d64': (1,35) }
 
-extToImagesize = {
-    # ext, filesize, sector count
-    '.d64': ((174848,  683),),
-    '.d81': ((819200, 3200),),
-    '.d71': ((349696, 1366),
-             (349696+1366, 1366)) }
-
 imagesizeToExt = {
     # filesize, ext, sector count
+    143360: ( '.dsk',  560),
     174848: ( '.d64',  683),
     175531: ( '.d64',  683) }
 
@@ -350,69 +418,6 @@ dirSectorStructures = {
     '.d64': ("<b b  c      c    140s 16s 2x 2s x   2s 4x b     b     11s       5s 67x", 
              "tr sc format dosv1 bam dnam   diskid dosv2 dsktr dsksc geoformat geoversion")
 }
-
-#
-# tools
-#
-def makeunicode( s, enc="utf-8", normalizer='NFC'):
-    try:
-        if type(s) != puni:
-            s = puni(s, enc)
-    except:
-        pass
-    s = unicodedata.normalize(normalizer, s)
-    return s
-
-
-def hexdump( s, col=32 ):
-    """Using this for debugging was so memory lane..."""
-
-    cols = {
-         8: ( 7, 0xfffffff8),
-        16: (15, 0xfffffff0),
-        32: (31, 0xffffffe0),
-        64: (63, 0xffffffc0)}
-
-    if not col in cols:
-        col = 16
-    minorMask, majorMask = cols.get(col)
-    d = False
-    mask = col-1
-    if type(s) in( list, tuple): #ImageBuffer):
-        d = True
-    for i,c in enumerate(s):
-        if d:
-            t = hex(c)[2:]
-        else:
-            t = hex(ord(c))[2:]
-        t = t.rjust(2, '0')
-
-        # spit out address
-        if i % col == 0:
-            a = hex(i)[2:]
-            a = a.rjust(4,'0')
-            sys.stdout.write(a+':  ')
-        sys.stdout.write(t+' ')
-
-        # spit out ascii line
-        if i & minorMask == minorMask:
-            offs = i & majorMask
-            
-            for j in range(col):
-                c2 = s[offs+j]
-                d2 = ord(c2)
-                if 32 <= d2 < 127:
-                    sys.stdout.write( c2 )
-                else:
-                    sys.stdout.write( '.' )
-            sys.stdout.write('\n')
-
-
-
-#
-# disk image tools
-#
-
 def cleanupString( s ):
     # remove garbage
     t = s.strip( stripchars )
@@ -488,9 +493,8 @@ class GEOSDirEntry(object):
 
             # self.geosFileType = ord(dirEntryBytes[22])
             self.geosFileType = dirEntryBytes[22]
-            #self.geosFileTypeString = geosFileTypes[self.geosFileType]
             self.geosFileTypeString = geosFileTypes.get(self.geosFileType,
-                                    "UNKNOWN GEOS filetype:%i" % self.geosFileType)
+                                "UNKNOWN GEOS filetype:%i" % self.geosFileType)
 
             # self.modfDateRAW = dirEntryBytes[0x17:0x1c]
             # dates = [ord(i) for i in self.modfDateRAW]
@@ -530,7 +534,7 @@ class DiskImage(object):
         size = len(self.stream)
         typ, sectorcount = imagesizeToExt.get( size, ("",0) )
         
-        if typ not in ('.d64',): # '.d71'):
+        if typ not in ('.d64', '.dsk'): # '.d71'):
             return
 
         self.isOK = True
@@ -574,6 +578,7 @@ class DiskImage(object):
             err, f.chains[0] = self.getChain(t, s)
 
             self.files.append( f )
+            pp( (dirEntry.fileType, repr(dirEntry.fileName), len(f.chains[0])) )
 
 
     def getTrackOffsetList(self, sizelist ):
@@ -598,7 +603,7 @@ class DiskImage(object):
         return sectorOffsets, trackByteOffsets, sectorsPerTrack
 
     def readfile( self, path):
-        f = open(path, 'rb')
+        f = io.open(path, 'rb')
         s = f.read()
         f.close()
         s = bytearray(s)
@@ -749,7 +754,7 @@ def isEmptyBlock( block ):
     return True
 
 
-def renderBlock( block, scale ):
+def renderBlock( block, bricks, scale ):
     """Render a disk block as a lode runner level PNG file.
 
     Returns img or False."""
@@ -790,23 +795,66 @@ def renderBlock( block, scale ):
     return baseimg
 
 
+def renderCBMDisk(blocklist, bricks, scale=4, usealpha=False):
+
+    for i, item in enumerate(blocklist):
+        err, block, ts = item
+        t,s = ts
+        if isEmptyBlock( block ):
+            continue
+        if err:
+            print(repr( err ) )
+            print()
+        else:
+            img = renderBlock( block, bricks, scale=scale )
+            if not img:
+                continue
+            basename = "level %i (%i,%i)" % (i+1,t,s)
+            name = basename + ".png"
+            destimage = os.path.join( destfolder, name )
+            # img = img.convert("P")
+            img.save( destimage )
+            if 1: #kwlog:
+                print(basename)
+        # hexdump( block )
+if kwlog:
+        pp( blockTypes )
+
+
+
+if 1:
+    # classic c-64 loderunner color scheme
+    brickCol = 14
+    brickCol = 2
+    runnerCol = 1
+    guardCol = 3
+    usealpha = True
+
+    brickColors = {
+        ' ': blackCol,
+        '.': whiteCol,
+        '*': brickCol,
+        '#': guardCol}
+    backColor = (0,0,0,1)
+else:
+    # black & white color scheme
+    brickCol = 1
+    runnerCol = 0
+    guardCol = 0
+    usealpha = False
+
+    brickColors = {
+        ' ': whiteCol,
+        '.': blackCol,
+        '*': blackCol,
+        '#': blackCol}
+    backColor = (1,1,1,1)
 
 if __name__ == '__main__':
-    scale = 4
-    
-    # load the bricks
-    bricks = getBricks(rawBricks, scale=scale, transparency=usealpha )
 
-    # create a set with all possible nibble combinations (100) for fast level check
-    validLodeLevelNibbles = range( 10 )
-    validLodeLevelItems = itertools.product( validLodeLevelNibbles, repeat=2)
-    validLodeLevelBytes = []
-    for i in validLodeLevelItems:
-        high, low = i
-        high <<= 4
-        byte = high + low
-        validLodeLevelBytes.append( byte ) # chr(byte) )
-    validLodeLevelBytes = set( validLodeLevelBytes )
+    # this defines the style of the image
+    scale = 4
+    bricks = getBricks( rawBricks, scale=scale, transparency=usealpha )
 
     # process the args
     for f in sys.argv[1:]:
@@ -823,26 +871,9 @@ if __name__ == '__main__':
         # 
         items = getLodeBlocks( di )
         print(path)
-        for i, item in enumerate(items):
-            err, block, ts = item
-            t,s = ts
-            if isEmptyBlock( block ):
-                continue
-            if err:
-                print(repr( err ) )
-                print()
-            else:
-                img = renderBlock( block, scale=scale )
-                if not img:
-                    continue
-                basename = "level %i (%i,%i)" % (i+1,t,s)
-                name = basename + ".png"
-                destimage = os.path.join( destfolder, name )
-                # img = img.convert("P")
-                img.save( destimage )
-                if 1: #kwlog:
-                    print(basename)
-            # hexdump( block )
+        
+        renderCBMDisk(items, bricks, scale=4, usealpha=False)
+
     if kwlog:
         pp( blockTypes )
 
