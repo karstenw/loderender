@@ -1,26 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Created by Leo: http://leoeditor.com/leo_toc.html -->
 <leo_file xmlns:leo="http://leoeditor.com/namespaces/leo-python-editor/1.1" >
-<leo_header file_format="2"/>
-<globals/>
+<leo_header file_format="2" tnodes="0" max_tnode_index="0" clone_windows="0"/>
+<globals body_outline_ratio="0.5" body_secondary_ratio="0.5">
+	<global_window_position top="50" left="50" height="500" width="700"/>
+	<global_log_window_position top="0" left="0" height="0" width="0"/>
+</globals>
 <preferences/>
 <find_panel_settings/>
 <vnodes>
-<v t="karstenw.20210613141655.2"><vh>Script </vh>
-<v t="karstenw.20210613141729.1"><vh>@clean loderender.py</vh>
+<v t="karstenw.20210613141655.2" a="E"><vh>Script </vh>
+<v t="karstenw.20210613141729.1" a="E"><vh>@clean loderender.py</vh>
 <v t="karstenw.20210613142129.1"><vh>Declarations</vh></v>
 <v t="karstenw.20210613142213.1"><vh>py2 / py3</vh></v>
-<v t="karstenw.20210613142244.1"><vh>+ GLOBALS +</vh>
+<v t="karstenw.20210613142244.1" a="E"><vh>+ GLOBALS +</vh>
 <v t="karstenw.20210714160248.1"><vh>c64colors</vh></v>
 <v t="karstenw.20210714160342.1"><vh>validLodeLevelBytes</vh></v>
 <v t="karstenw.20210714160414.1"><vh>rawBricks</vh></v>
 </v>
-<v t="karstenw.20210613142351.1"><vh>+ TOOLS +</vh>
+<v t="karstenw.20210613142351.1" a="E"><vh>+ TOOLS +</vh>
 <v t="karstenw.20210613142129.6"><vh>makeunicode</vh></v>
 <v t="karstenw.20210613142129.7"><vh>hexdump</vh></v>
 <v t="karstenw.20210613142129.2"><vh>makeImage</vh></v>
 </v>
-<v t="karstenw.20210714155339.1"><vh>+ BRICKS +</vh>
+<v t="karstenw.20210714155339.1" a="E"><vh>+ BRICKS +</vh>
 <v t="karstenw.20210613142129.3"><vh>getName</vh></v>
 <v t="karstenw.20210613142129.4"><vh>dobrick</vh></v>
 <v t="karstenw.20210613142129.5"><vh>getBricks</vh></v>
@@ -44,7 +47,7 @@
 </v>
 </v>
 <v t="karstenw.20210714203056.1"><vh>+ APPLE II DISK IMAGES #</vh></v>
-<v t="karstenw.20210613142500.1"><vh>Lode Runner</vh>
+<v t="karstenw.20210613142500.1" a="E"><vh>Lode Runner</vh>
 <v t="karstenw.20210613142129.20"><vh>getLodeBlocks</vh></v>
 <v t="karstenw.20210613142129.21"><vh>isEmptyBlock</vh></v>
 <v t="karstenw.20210613142129.22"><vh>renderBlock</vh></v>
@@ -452,7 +455,7 @@ kwlog = 0
     baseimg = PIL.Image.new('RGB', (w,h), backColor)
 
     for y in range(16):
-        for xd in range( 14):
+        for xd in range(14):
             # index into block
             i = 1 + (y * 14 + xd)
             c = block[i]
@@ -486,7 +489,7 @@ kwlog = 0
 </t>
 <t tx="karstenw.20210613142129.3">def getName( comment ):
     """Extract index and name from inline brick."""
-    pat = re.compile("^- (\d+) \((.+)\).*")
+    pat = re.compile( r"^- (\d+) \((.+)\).*" )
     m = pat.match( comment )
     if m:
         i,name = m.groups()

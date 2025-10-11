@@ -310,7 +310,7 @@ def makeImage(w, h, pixels, scale):
 
 def getName( comment ):
     """Extract index and name from inline brick."""
-    pat = re.compile("^- (\d+) \((.+)\).*")
+    pat = re.compile( r"^- (\d+) \((.+)\).*" )
     m = pat.match( comment )
     if m:
         i,name = m.groups()
@@ -764,7 +764,7 @@ def renderBlock( block, bricks, scale ):
     baseimg = PIL.Image.new('RGB', (w,h), backColor)
 
     for y in range(16):
-        for xd in range( 14):
+        for xd in range(14):
             # index into block
             i = 1 + (y * 14 + xd)
             c = block[i]
